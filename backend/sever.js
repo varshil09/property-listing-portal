@@ -76,4 +76,3 @@ app.listen(PORT, () => {
   console.log(`   POST   /api/inquiries`);
   console.log(`   PUT    /api/inquiries/:id/respond`);
 });
-// Export app for testing
