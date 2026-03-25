@@ -1,18 +1,28 @@
 const Property = require('../models/Property');
 const mongoose = require('mongoose');
+const { cloudinary } = require('../config/cloudinary');
 
-// @desc    Create a property
+// @desc    Create a property with images
 // @route   POST /api/properties
 // @access  Private (Owner/Admin)
 const createProperty = async (req, res) => {
   try {
     console.log('Creating property for user:', req.user._id);
     console.log('Property data:', req.body);
+    console.log('Files:', req.files);
+
+    // Process uploaded images
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+      imageUrls = req.files.map(file => file.path); // Cloudinary returns path
+      console.log('Uploaded images:', imageUrls);
+    }
 
     const propertyData = {
       ...req.body,
       owner: req.user._id,
-      status: 'pending'
+      status: 'pending',
+      images: imageUrls
     };
 
     const property = await Property.create(propertyData);
@@ -30,9 +40,115 @@ const createProperty = async (req, res) => {
   }
 };
 
-// @desc    Get all properties with filters
-// @route   GET /api/properties
-// @access  Public
+// @desc    Update property with images
+// @route   PUT /api/properties/:id
+// @access  Private (Owner/Admin)
+const updateProperty = async (req, res) => {
+  try {
+    let property = await Property.findById(req.params.id);
+
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found'
+      });
+    }
+
+    // Check ownership
+    if (property.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this property'
+      });
+    }
+
+    // Process new images if uploaded
+    let imageUrls = property.images;
+    if (req.files && req.files.length > 0) {
+      // Delete old images from Cloudinary
+      for (const oldImage of property.images) {
+        if (oldImage) {
+          const publicId = oldImage.split('/').pop().split('.')[0];
+          await cloudinary.uploader.destroy(`property-portal/${publicId}`);
+        }
+      }
+      // Add new images
+      imageUrls = req.files.map(file => file.path);
+    }
+
+    const updateData = {
+      ...req.body,
+      images: imageUrls
+    };
+
+    property = await Property.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      data: property
+    });
+  } catch (error) {
+    console.error('Update property error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Delete property with images
+// @route   DELETE /api/properties/:id
+// @access  Private (Owner/Admin)
+const deleteProperty = async (req, res) => {
+  try {
+    const property = await Property.findById(req.params.id);
+
+    if (!property) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found'
+      });
+    }
+
+    if (property.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this property'
+      });
+    }
+
+    // Delete images from Cloudinary
+    for (const image of property.images) {
+      if (image) {
+        try {
+          const publicId = image.split('/').pop().split('.')[0];
+          await cloudinary.uploader.destroy(`property-portal/${publicId}`);
+        } catch (err) {
+          console.error('Error deleting image from Cloudinary:', err);
+        }
+      }
+    }
+
+    await property.deleteOne();
+
+    res.json({
+      success: true,
+      message: 'Property deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete property error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// ... rest of the controller functions (getProperties, getPropertyById, etc.) remain the same
 const getProperties = async (req, res) => {
   try {
     console.log('Fetching properties with query:', req.query);
@@ -51,7 +167,6 @@ const getProperties = async (req, res) => {
 
     const query = {};
 
-    // Build search query
     if (location && location.trim() !== '') {
       query.location = new RegExp(location, 'i');
     }
@@ -78,24 +193,14 @@ const getProperties = async (req, res) => {
       query.bathrooms = { $gte: Number(bathrooms) };
     }
 
-    // Status filtering based on user role
     if (!req.user) {
-      // Public users only see approved properties
       query.status = 'approved';
     } else if (req.user.role === 'buyer') {
-      // Buyers only see approved properties
       query.status = 'approved';
-    } else if (req.user.role === 'owner') {
-      // Owners see their own properties regardless of status + approved properties
-      // We'll handle this with $or in the find query
-    } else if (req.user.role === 'admin') {
-      // Admins see all properties
-      if (status && status !== '') {
-        query.status = status;
-      }
+    } else if (req.user.role === 'admin' && status && status !== '') {
+      query.status = status;
     }
 
-    // Build sort
     let sortOption = {};
     if (sort === 'price_asc') sortOption.price = 1;
     else if (sort === 'price_desc') sortOption.price = -1;
@@ -104,7 +209,6 @@ const getProperties = async (req, res) => {
 
     let properties;
 
-    // Handle owner role special case
     if (req.user && req.user.role === 'owner') {
       properties = await Property.find({
         $or: [
@@ -136,14 +240,10 @@ const getProperties = async (req, res) => {
   }
 };
 
-// @desc    Get single property by ID
-// @route   GET /api/properties/:id
-// @access  Public
 const getPropertyById = async (req, res) => {
   try {
     console.log('Fetching property by ID:', req.params.id);
 
-    // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({
         success: false,
@@ -161,11 +261,7 @@ const getPropertyById = async (req, res) => {
       });
     }
 
-    // Check if user has permission to view this property
     if (req.user) {
-      // Admin can view all
-      // Owner can view their own properties even if not approved
-      // Buyer can only view approved properties
       if (req.user.role === 'buyer' && property.status !== 'approved') {
         return res.status(403).json({
           success: false,
@@ -173,7 +269,6 @@ const getPropertyById = async (req, res) => {
         });
       }
     } else {
-      // Public users can only view approved properties
       if (property.status !== 'approved') {
         return res.status(403).json({
           success: false,
@@ -182,11 +277,8 @@ const getPropertyById = async (req, res) => {
       }
     }
 
-    // Increment views
     property.views += 1;
     await property.save();
-
-    console.log('Property found:', property.title);
 
     res.json({
       success: true,
@@ -201,9 +293,6 @@ const getPropertyById = async (req, res) => {
   }
 };
 
-// @desc    Get my properties (for owner)
-// @route   GET /api/properties/my-properties
-// @access  Private (Owner/Admin)
 const getMyProperties = async (req, res) => {
   try {
     console.log('Fetching my properties for user:', req.user._id);
@@ -228,86 +317,6 @@ const getMyProperties = async (req, res) => {
   }
 };
 
-// @desc    Update property
-// @route   PUT /api/properties/:id
-// @access  Private (Owner/Admin)
-const updateProperty = async (req, res) => {
-  try {
-    let property = await Property.findById(req.params.id);
-
-    if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
-    }
-
-    // Check ownership
-    if (property.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this property'
-      });
-    }
-
-    property = await Property.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    res.json({
-      success: true,
-      data: property
-    });
-  } catch (error) {
-    console.error('Update property error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// @desc    Delete property
-// @route   DELETE /api/properties/:id
-// @access  Private (Owner/Admin)
-const deleteProperty = async (req, res) => {
-  try {
-    const property = await Property.findById(req.params.id);
-
-    if (!property) {
-      return res.status(404).json({
-        success: false,
-        message: 'Property not found'
-      });
-    }
-
-    if (property.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this property'
-      });
-    }
-
-    await property.deleteOne();
-
-    res.json({
-      success: true,
-      message: 'Property deleted successfully'
-    });
-  } catch (error) {
-    console.error('Delete property error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// @desc    Mark property as sold/rented
-// @route   PUT /api/properties/:id/mark-sold
-// @access  Private (Owner)
 const markAsSold = async (req, res) => {
   try {
     const property = await Property.findById(req.params.id);
