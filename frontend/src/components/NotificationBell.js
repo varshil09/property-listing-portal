@@ -220,5 +220,5 @@ const NotificationBell = () => {
   );
 };
 
-//
+// Bell
 export default NotificationBell;
