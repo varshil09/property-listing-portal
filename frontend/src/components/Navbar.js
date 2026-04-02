@@ -32,6 +32,14 @@ const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
+  // Get user initial for avatar
+  const getUserInitial = () => {
+    if (user?.name) {
+      return user.name.charAt(0).toUpperCase();
+    }
+    return '👤';
+  };
+
   return (
     <>
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -68,19 +76,23 @@ const Navbar = () => {
                   <div className="relative ml-2">
                     <button
                       onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-dark-800/50 hover:bg-dark-700/50 transition-all duration-200"
+                      className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-dark-800/50 hover:bg-dark-700/50 transition-all duration-200"
                     >
                       <div className="relative">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white font-bold overflow-hidden">
-                          {user.profilePicture ? (
-                            <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
-                          ) : (
-                            user.name?.charAt(0).toUpperCase()
-                          )}
-                        </div>
+                        {user.profilePicture ? (
+                          <img
+                            src={user.profilePicture}
+                            alt={user.name}
+                            className="w-8 h-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
+                            {getUserInitial()}
+                          </div>
+                        )}
                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-dark-900"></div>
                       </div>
-                      <span className="text-gray-200">{user.name}</span>
+                      <span className="text-gray-200 text-sm max-w-[100px] truncate">{user.name}</span>
                       <svg className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
@@ -89,16 +101,20 @@ const Navbar = () => {
                     {isDropdownOpen && (
                       <div className="absolute right-0 mt-2 w-64 bg-dark-800 rounded-2xl shadow-2xl overflow-hidden z-50 border border-dark-700">
                         <div className="p-4 border-b border-dark-700 flex items-center space-x-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white font-bold overflow-hidden">
-                            {user.profilePicture ? (
-                              <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
-                            ) : (
-                              user.name?.charAt(0).toUpperCase()
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-200">{user.name}</p>
-                            <p className="text-sm text-gray-400">{user.email}</p>
+                          {user.profilePicture ? (
+                            <img
+                              src={user.profilePicture}
+                              alt={user.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
+                              {getUserInitial()}
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-200 truncate">{user.name}</p>
+                            <p className="text-sm text-gray-400 truncate">{user.email}</p>
                           </div>
                         </div>
                         <div className="py-2">
@@ -145,6 +161,7 @@ const Navbar = () => {
               )}
             </div>
 
+            {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden p-2 rounded-lg"
@@ -158,6 +175,7 @@ const Navbar = () => {
           </div>
         </div>
 
+        {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden bg-dark-800 border-t border-dark-700">
             <div className="container mx-auto px-4 py-4">
@@ -177,17 +195,21 @@ const Navbar = () => {
               {user ? (
                 <>
                   <div className="py-3 px-4 border-t border-dark-700 mt-2 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white font-bold overflow-hidden">
-                        {user.profilePicture ? (
-                          <img src={user.profilePicture} alt={user.name} className="w-full h-full object-cover" />
-                        ) : (
-                          user.name?.charAt(0).toUpperCase()
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-200">{user.name}</p>
-                        <p className="text-sm text-gray-400">{user.email}</p>
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      {user.profilePicture ? (
+                        <img
+                          src={user.profilePicture}
+                          alt={user.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
+                          {getUserInitial()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-200 truncate">{user.name}</p>
+                        <p className="text-sm text-gray-400 truncate">{user.email}</p>
                       </div>
                     </div>
                     <NotificationBell />

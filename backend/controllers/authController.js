@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { sendPasswordResetEmail, sendWelcomeEmail } = require('../utils/emailService');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -26,6 +27,9 @@ const register = async (req, res) => {
       role: role || 'buyer',
       phone
     });
+
+    // Send welcome email
+    await sendWelcomeEmail(email, name);
 
     res.status(201).json({
       _id: user._id,
@@ -87,24 +91,43 @@ const getMe = async (req, res) => {
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Please provide an email address' });
+    }
+
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: 'No user found with this email address' });
     }
 
+    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
     user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     await user.save();
 
-    res.json({
-      success: true,
-      message: 'Password reset token generated',
-      resetToken: resetToken // In production, send via email
-    });
+    // Send email with reset token
+    const emailSent = await sendPasswordResetEmail(email, resetToken, user.name);
+
+    if (emailSent.success) {
+      res.json({
+        success: true,
+        message: 'Password reset email sent successfully'
+      });
+    } else {
+      // If email fails, still return success to prevent user enumeration
+      // but log the error
+      console.error('Email sending failed:', emailSent.error);
+      res.json({
+        success: true,
+        message: 'If an account exists with this email, you will receive a password reset link'
+      });
+    }
   } catch (error) {
+    console.error('Forgot password error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -124,19 +147,24 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired token' });
     }
 
+    // Set new password
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
 
     await user.save();
 
-    res.json({ success: true, message: 'Password reset successful' });
+    res.json({
+      success: true,
+      message: 'Password reset successful. You can now login with your new password.'
+    });
   } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// @desc    Change password
+// @desc    Change password (authenticated user)
 // @route   PUT /api/auth/change-password
 const changePassword = async (req, res) => {
   try {
@@ -151,10 +179,21 @@ const changePassword = async (req, res) => {
     user.password = req.body.newPassword;
     await user.save();
 
-    res.json({ success: true, message: 'Password changed successfully' });
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
   } catch (error) {
+    console.error('Change password error:', error);
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { register, login, getMe, forgotPassword, resetPassword, changePassword };
+module.exports = {
+  register,
+  login,
+  getMe,
+  forgotPassword,
+  resetPassword,
+  changePassword
+};

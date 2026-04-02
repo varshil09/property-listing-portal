@@ -16,9 +16,14 @@ const ForgotPassword = () => {
     setLoading(true);
 
     try {
-      await axios.post('/auth/forgot-password', { email });
-      setSubmitted(true);
-      toast.success('Password reset link sent to your email');
+      const response = await axios.post('/auth/forgot-password', { email });
+      if (response.data.success) {
+        setSubmitted(true);
+        toast.success('Password reset link sent to your email!');
+      } else {
+        toast.success('If an account exists with this email, you will receive a reset link.');
+        setSubmitted(true);
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to send reset link');
     } finally {
@@ -99,6 +104,9 @@ const ForgotPassword = () => {
                           transition={{ duration: 0.3 }}
                         />
                       </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        We'll send a password reset link to this email address
+                      </p>
                     </motion.div>
 
                     <motion.button
@@ -130,14 +138,22 @@ const ForgotPassword = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     className="text-center"
                   >
-                    <div className="text-6xl mb-4">📧</div>
+                    <div className="text-6xl mb-4 animate-bounce">📧</div>
                     <h3 className="text-xl font-semibold text-gray-200 mb-2">Check Your Email</h3>
                     <p className="text-gray-400 mb-4">
                       We've sent a password reset link to <strong className="text-primary-400">{email}</strong>
                     </p>
+                    <div className="bg-dark-700 rounded-lg p-4 mb-4">
+                      <p className="text-sm text-gray-300">📌 Important Notes:</p>
+                      <ul className="text-xs text-gray-400 mt-2 space-y-1 text-left">
+                        <li>• The reset link will expire in 10 minutes</li>
+                        <li>• Check your spam folder if you don't see the email</li>
+                        <li>• Make sure you entered the correct email address</li>
+                      </ul>
+                    </div>
                     <button
                       onClick={() => navigate('/login')}
-                      className="btn-primary"
+                      className="btn-primary w-full"
                     >
                       Back to Login
                     </button>

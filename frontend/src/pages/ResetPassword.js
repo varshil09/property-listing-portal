@@ -13,6 +13,7 @@ const ResetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,15 +31,49 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      await axios.put(`/auth/reset-password/${token}`, { password });
-      toast.success('Password reset successful! Please login with your new password.');
-      navigate('/login');
+      const response = await axios.put(`/auth/reset-password/${token}`, { password });
+      if (response.data.success) {
+        setResetSuccess(true);
+        toast.success('Password reset successful! Please login with your new password.');
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to reset password');
     } finally {
       setLoading(false);
     }
   };
+
+  if (resetSuccess) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950">
+        <Navbar />
+        <div className="container mx-auto px-4 py-12">
+          <div className="flex justify-center items-center min-h-[calc(100vh-5rem)]">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="max-w-md w-full bg-dark-800 rounded-2xl shadow-2xl p-8 text-center"
+            >
+              <div className="text-6xl mb-4 animate-bounce">✅</div>
+              <h2 className="text-2xl font-bold text-gray-200 mb-2">Password Reset Successful!</h2>
+              <p className="text-gray-400 mb-6">
+                Your password has been changed successfully. You will be redirected to login page.
+              </p>
+              <button
+                onClick={() => navigate('/login')}
+                className="btn-primary w-full"
+              >
+                Go to Login
+              </button>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950">
@@ -103,7 +138,7 @@ const ResetPassword = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full px-4 py-3 bg-dark-700 border border-dark-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-200 pr-12"
-                        placeholder="Enter new password"
+                        placeholder="Enter new password (min. 6 characters)"
                       />
                       <button
                         type="button"
